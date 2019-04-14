@@ -1,0 +1,67 @@
+
+def get_files(filepath):
+    all_files = []
+    for root, dirs, files in os.walk(filepath):
+        files = glob.glob(os.path.join(root,'*.json'))
+        for f in files :
+            all_files.append(os.path.abspath(f))
+    
+    return all_files
+    
+    
+
+song_files = get_files('data/song_data')
+
+filepath = song_files[0]
+
+df = pd.read_json(filepath , orient='records', typ='frame', lines=True)
+df.head()
+
+/*Extract Data for Songs Table
+Select columns for song ID, title, artist ID, year, and duration
+Use df.values to select just the values from the dataframe
+Index to select the first (only) record in the dataframe
+Convert the array to a list and set it to song_data*/
+
+song_data = df[['song_id', 'title', 'artist_id', 'year', 'duration']].values[0].flatten()
+song_data = song_data.tolist()
+song_data
+
+cur.execute(song_table_insert, song_data)
+conn.commit()
+
+Extract Data for Artists Table
+Select columns for artist ID, name, location, latitude, and longitude
+Use df.values to select just the values from the dataframe
+Index to select the first (only) record in the dataframe
+Convert the array to a list and set it to artist_data
+
+artist_data = df[['artist_id', 'artist_name', 'artist_location', 'artist_latitude', 'artist_longitude']].values[0].flatten()
+artist_data = artist_data.tolist()
+artist_data
+
+#Insert Record into Artist Table¶
+#Implement the artist_table_insert query in sql_queries.py and run the cell below to insert a record for 
+#this song's artist into the artists table. Remember to run create_tables.py before running the cell below to ensure 
+#you've created/resetted the artists table in the sparkify database.
+
+#Process log_data
+#In this part, you'll perform ETL on the second dataset, log_data, to create the time and users dimensional tables, as well as the songplays fact table.
+
+#Let's perform ETL on a single log file and load a single record into each table.
+
+#Use the get_files function provided above to get a list of all log JSON files in data/log_data
+#Select the first log file in this list
+#Read the log file and view the data
+
+log_files = get_files('data/log_data')
+
+filepath = log_files[0]
+
+df = pd.read_json(filepath, orient='records', typ='frame' ,lines=True)
+df.head(1)
+
+
+
+user_df = df[['userId', 'firstName', 'lastName', 'gender', 'level']]
+user_df
