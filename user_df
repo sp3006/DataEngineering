@@ -61,7 +61,46 @@ filepath = log_files[0]
 df = pd.read_json(filepath, orient='records', typ='frame' ,lines=True)
 df.head(1)
 
+is_song = df["page"] == 'NextSong'
+df = df[is_song]
+df.head(1)
 
+t  = pd.to_datetime(df['ts'], unit='ms')
+t.head(1)
 
+time_data = (t.dt.time,t.dt.hour,t.dt.day,t.dt.weekofyear,t.dt.month,t.dt.year,t.dt.weekday)
+time_data
+column_labels = ("start_time","hour","day","week","month", "year","weekday")
+
+time_df = pd.DataFrame(dict(zip(column_labels,time_data)),columns=column_labels).reset_index(drop=True)  
+time_df.head(1)
+
+for i, row in time_df.iterrows():
+    cur.execute(time_table_insert, list(row))
+    conn.commit()
+
+for i, row in user_df.iterrows():
+    cur.execute(user_table_insert, row)
+    conn.commit()
+
+for index, row in df.iterrows():
+
+    # get songid and artistid from song and artist tables
+    cur.execute(song_select, (row.song, row.artist, row.length))
+    print(row.song)
+    print(row.artist)
+    print(row.length)
+    results = cur.fetchone()
+    
+    if results:
+        songid, artistid = results
+    else:
+        songid, artistid = None, None
+
+    # insert songplay record
+    songplay_data = (pd.to_datetime(row.ts, unit='ms'),row.userId,row.level,songid,artistid,row.sessionId,row.location,row.userAgent)
+    print(songplay_data)
+    cur.execute(songplay_table_insert, songplay_data)
+    conn.commit()
 user_df = df[['userId', 'firstName', 'lastName', 'gender', 'level']]
 user_df
