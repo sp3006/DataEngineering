@@ -1,48 +1,106 @@
-# DROP TABLES
+import os
+import glob
+import psycopg2
+import pandas as pd
+from sql_queries import *
 
-songplay_table_drop = "DROP TABLE IF EXISTS songplays;"
-user_table_drop = "DROP TABLE IF EXISTS users;"
-song_table_drop = "DROP TABLE IF EXISTS songs;"
-artist_table_drop = "DROP TABLE IF EXISTS artists;"
-time_table_drop = "DROP TABLE IF EXISTS time;"
+def process_song_file(cur, filepath):
+    """The function to read and load the song and artist data 
+       from the song file using the cursor obect and filepath 
+    """
+    df = pd.read_json(filepath, lines=True)
 
-# CREATE TABLES
+     
+    # Declare the variable to hold the columns from the JSON file and read in dataframe to produce the list
+     
+    song_data = df[['song_id', 'title', 'artist_id', 'year', 'duration']].values[0].flatten()
+    cur.execute(song_table_insert, song_data)
+    
+    # Populate the artist record using data frame and transform the same in list
+    
 
-songplay_table_create = ("""CREATE TABLE IF NOT EXISTS songplays (songplay_id SERIAL PRIMARY KEY, start_time time NOT NULL, user_id text NOT NULL, level text, song_id text, artist_id text, session_id integer NOT NULL, location text, user_agent text)
-""")
+    artist_data = df[['artist_id', 'artist_name', 'artist_location', 'artist_latitude', 'artist_longitude']].values[0].flatten().tolist()
+    cur.execute(artist_table_insert, artist_data)
 
-user_table_create = ("""CREATE TABLE IF NOT EXISTS users (user_id text PRIMARY KEY, firstName text NOT NULL, lastName text NOT NULL, gender text, level text)
-""")
 
-song_table_create = ("""CREATE TABLE IF NOT EXISTS songs(song_id text PRIMARY KEY, title text, artist_id text, year smallint, duration float)""")
+def process_log_file(cur, filepath):
+    """This function process the data from log file 
+       and load users and open log file 
+    """
+    df = pd.read_json(filepath, orient='records', typ='frame' ,lines=True)
 
-artist_table_create = ("""CREATE TABLE IF NOT EXISTS artists(artist_id text PRIMARY KEY, name text, location varchar(5000), lattitude float, longitude float)""")
+    # filter by NextSong action you can use square brackets to select one column of the df DataFrame 
+    is_song = df["page"] == 'NextSong'
+    df = df[is_song]
 
-time_table_create = ("""CREATE TABLE IF NOT EXISTS time(start_time time PRIMARY KEY, hour smallint, day smallint, week smallint, month smallint, year smallint, weekday smallint)
-""")
+    # convert timestamp column to datetime. Print out ts column as Pandas Series
+    t  = pd.to_datetime(df['ts'], unit='ms')
+    
+    # insert time data records
+    
+    time_data = (t.dt.time,t.dt.hour,t.dt.day,t.dt.weekofyear,t.dt.month,t.dt.year,t.dt.weekday)
+    column_labels = ("start_time","hour","day","week","month", "year","weekday")
+    time_df = pd.DataFrame(dict(zip(column_labels,time_data)),columns=column_labels).reset_index(drop=True)  
+    # Iterate throw the dataframe time_df """
+    for i, row in time_df.iterrows():
+        cur.execute(time_table_insert, list(row))
 
-# INSERT RECORDS
+    # Load user table and accesing the columns using pandas DataFrame with columns as shown below """
+    user_df = df[['userId', 'firstName', 'lastName', 'gender', 'level']]
 
-songplay_table_insert = ("""INSERT INTO songplays(start_time , user_id , level , song_id , artist_id , session_id , location , user_agent) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)""")
+    # Insert user records 
+    for i, row in user_df.iterrows():
+        cur.execute(user_table_insert, row)
 
-user_table_insert = ("""INSERT INTO users (user_id, firstName , lastName , gender, level)VALUES(%s, %s, %s, %s, %s) ON CONFLICT (user_id) DO UPDATE SET level=EXCLUDED.level """)
+    # insert songplay records
+    for index, row in df.iterrows():
+        
+        # Get songid and artistid from song and artist tables
+        cur.execute(song_select, (row.song, row.artist, row.length))
+        results = cur.fetchone()
+        
+        if results:
+            songid, artistid = results
+        else:
+            songid, artistid = None, None
 
-song_table_insert = ("""INSERT INTO songs(song_id, title, artist_id, year, duration) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (song_id) DO UPDATE SET song_id = EXCLUDED.song_id""")
+        # Insert songplay record 
+        songplay_data = (pd.to_datetime(row.ts, unit='ms'),row.userId,row.level,songid,artistid,row.sessionId,row.location,row.userAgent)
+        cur.execute(songplay_table_insert, songplay_data)
 
-artist_table_insert = ("""INSERT INTO artists (artist_id, name, location, lattitude, longitude)VALUES(%s, %s, %s, %s, %s) ON CONFLICT (artist_id) DO UPDATE SET artist_id = EXCLUDED.artist_id""")
 
-time_table_insert = ("""INSERT INTO time (start_time, hour, day, week, month, year, weekday) VALUES(%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (start_time) DO UPDATE SET start_time = EXCLUDED.start_time""")
+def process_data(cur, conn, filepath, func):
+    """ The Function to read the files from path"""
+    all_files = []
+    for root, dirs, files in os.walk(filepath):
+        files = glob.glob(os.path.join(root,'*.json'))
+        for f in files :
+            all_files.append(os.path.abspath(f))
 
-# FIND SONGS
+    # Get total number of files found 
+    num_files = len(all_files)
+    print('{} files found in {}'.format(num_files, filepath))
 
-song_select = ("""
-SELECT s.song_id, a.artist_id FROM songs as s
-LEFT JOIN artists as a 
-ON a.artist_id = s.artist_id
-WHERE s.title = (%s) AND a.name = (%s) AND s.duration=(%s)
-""")
+    # Iterate over files and process """
+    for i, datafile in enumerate(all_files, 1):
+        func(cur, datafile)
+        conn.commit()
+        print('{}/{} files processed.'.format(i, num_files))
 
-# QUERY LISTS
 
-create_table_queries = [songplay_table_create, user_table_create, song_table_create, artist_table_create, time_table_create]
-drop_table_queries = [songplay_table_drop, user_table_drop, song_table_drop, artist_table_drop, time_table_drop]
+def main():
+    """For python main function, we have to define a function and 
+       then use if __name__ == __main__ condition to execute this function. 
+    """
+    conn = psycopg2.connect("host=127.0.0.1 dbname=sparkifydb user=student password=student")
+    cur = conn.cursor()
+    # Process data 
+    process_data(cur, conn, filepath='data/song_data', func=process_song_file)
+    process_data(cur, conn, filepath='data/log_data', func=process_log_file)
+
+    conn.close()
+
+    
+
+if __name__ == "__main__":
+    main()
