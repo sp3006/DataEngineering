@@ -118,3 +118,49 @@ except Exception as e:
     print(e)
 for row in rows:
     print(row.sessionid, row.artist, row.song_title, row.iteminsession, row.length_of_song,)
+    
+## TO-DO: Query 2: Give me only the following: name of artist, song (sorted by itemInSession) and user (first and last name)\
+## for userid = 10, sessionid = 182
+
+drop_query="DROP TABLE IF EXISTS song_details"
+try:
+    session.execute(drop_query)
+    print(drop_query)
+except Exception as e:
+    print(e)
+
+create_query="""CREATE TABLE IF NOT EXISTS song_details"""
+create_query=create_query + """(userid int, sessionId int ,artist text,  song_title text, 
+                                 first_name text, last_name text, itemInSession int, length_of_song float,
+                                 PRIMARY KEY((userid, sessionId), itemInSession ))
+                               """
+try:
+    session.execute(create_query)
+    print(create_query)
+except Exception as e:
+    print(e)
+
+
+file = 'event_datafile_new.csv'
+with open(file, encoding = 'utf8') as f:
+    csvreader = csv.reader(f)
+    next(csvreader) # skip header
+    for line in csvreader:
+## TO-DO: Assign the INSERT statements into the `query` variable
+        query = "INSERT INTO song_details (userid, sessionId ,artist ,  song_title , first_name , last_name, itemInSession, length_of_song) VALUES "
+        query = query + "(%s, %s, %s, %s, %s, %s, %s, %s)"
+        #print(query)
+        ## TO-DO: Assign which column element should be assigned for each column in the INSERT statement.
+        ## For e.g., to INSERT artist_name and user first_name, you would change the code below to `line[0], line[1]`
+        session.execute(query, (int(line[10]),int(line[8]), str(line[0]), str(line[9]), str(line[1]), str(line[4]), int(line[3]), float(line[5])))
+print("Success Insert")
+
+                    
+verify_data="SELECT * from song_details "
+verify_data = verify_data + "where  userid = 10 and sessionid = 182 order by iteminsession desc "
+try:
+    rows = session.execute(verify_data)
+except Exception as e:
+    print(e)
+for row in rows:
+    print(row.sessionid, row.artist, row.song_title, row.iteminsession, row.length_of_song,)
