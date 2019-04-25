@@ -80,4 +80,41 @@ try:
     print("Success in KEYSPACE!!! " + str(keyspc))
 except Exception as e:
     print(e)
- 
+
+drop_query="DROP TABLE IF EXISTS music_app_history"
+try:
+    session.execute(drop_query)
+    print(drop_query)
+except Exception as e:
+    print(e)
+
+create_query="CREATE TABLE IF NOT EXISTS music_app_history"
+create_query=create_query + "(sessionId int ,artist text, song_title text, itemInSession int, length_of_song float, PRIMARY KEY((sessionid, itemInSession), artist))"
+try:
+    session.execute(create_query)
+    print(create_query)
+except Exception as e:
+    print(e)
+    
+ file = 'event_datafile_new.csv'
+with open(file, encoding = 'utf8') as f:
+    csvreader = csv.reader(f)
+    next(csvreader) # skip header
+    for line in csvreader:
+## TO-DO: Assign the INSERT statements into the `query` variable
+        query = "INSERT INTO music_app_history (sessionId,artist, song_title, itemInSession, length_of_song) VALUES "
+        query = query + "(%s, %s, %s, %s, %s)"
+        #print(query)
+        ## TO-DO: Assign which column element should be assigned for each column in the INSERT statement.
+        ## For e.g., to INSERT artist_name and user first_name, you would change the code below to `line[0], line[1]`
+        session.execute(query, (int(line[8]), str(line[0]), str(line[9]), int(line[3]), float(line[5])))
+
+        
+verify_data="SELECT * from music_app_history "
+verify_data = verify_data + "where  sessionId = 338 and itemInSession = 4"
+try:
+    rows = session.execute(verify_data)
+except Exception as e:
+    print(e)
+for row in rows:
+    print(row.sessionid, row.artist, row.song_title, row.iteminsession, row.length_of_song,)
