@@ -1,60 +1,48 @@
 import configparser
 import psycopg2
-from sql_queries import copy_table_queries, insert_table_queries
-import os
-import glob
-import pandas as pd
+from sql_queries import create_table_queries, drop_table_queries
 
 
-   
-def load_staging_tables(cur, conn):
+def drop_tables(cur, conn):
     '''
-         Args: cur = cursor connect to Redshift DB
-         conn = used to connect to Postgres DB
-         Iterate & load using COPY imported tables list
-    '''
-    
+       Args : cur to fetch from connection
+            conn to connect the target DB
+            iteratively drop the tables from imported list
 
-    for query in copy_table_queries:
+    '''
+    for query in drop_table_queries:
         cur.execute(query)
         conn.commit()
 
 
-def insert_tables(cur, conn):
+def create_tables(cur, conn):
+
     '''
-         Args: cur = cursor to connect & extract from Redshift DB
-         conn = used to connect to Postgres DB
-         Iterate & Insert imported tables list
+       Args : cur to fetch from connection
+            conn to connect the target DB
+            iteratively drop the tables from imported list
+
     '''
-    for query in insert_table_queries:
+    for query in create_table_queries:
         cur.execute(query)
         conn.commit()
 
-       
+
 def main():
+    '''
+         Args : cur to fetch from connection
+            conn to connect the target DB
+            iteratively drop the tables from imported list
 
+    '''
     config = configparser.ConfigParser()
     config.read('dwh.cfg')
 
-    '''
-       Getting all the parameter values from the config file and passing to create connection and cursor objects.
-
-    '''
-    host = config.get("CLUSTER","HOST")
-    dbname = config.get("CLUSTER","DB_NAME")
-    user = config.get("CLUSTER", "DB_USER")
-    password = config.get("CLUSTER", "DB_PASSWORD")
-    port = config.get("CLUSTER", "DB_PORT")
-
-    conn = psycopg2.connect(f"host={host} dbname={dbname} user={user} password={password} port={port}")
+    conn = psycopg2.connect("host={} dbname={} user={} password={} port={}".format(*config['CLUSTER'].values()))
     cur = conn.cursor()
 
-    '''
-      Invoking Load function to load the json file to staging tables and
-      invoking insert table function to insert the data into the facts and dimensions tables
-    '''
-    load_staging_tables(cur, conn)
-    insert_tables(cur, conn)
+    drop_tables(cur, conn)
+    create_tables(cur, conn)
 
     conn.close()
 
